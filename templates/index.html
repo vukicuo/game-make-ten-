@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Fruit Box</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; user-select: none; background-color: #f4f4f4; }
+        h1 { color: #d32f2f; }
+        #board { display: inline-grid; grid-template-columns: repeat(15, 40px); gap: 3px; margin-top: 20px; background: #fff; padding: 10px; border: 2px solid #333; border-radius: 10px;}
+        .cell { width: 40px; height: 40px; background: #ffe4e1; color: #b71c1c; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; }
+        .selected { background: #32cd32; color: white; }
+        .empty { visibility: hidden; pointer-events: none; }
+        .info { font-size: 20px; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>game tổng 10</h1>
+    <div class="info">
+        Điểm: <b id="score" style="color: green;">0</b> | 
+        Thời gian: <b id="time" style="color: red;">100</b>s
+        <button onclick="startGame()" style="margin-left: 20px;">Chơi Lại</button>
+    </div>
+    
+    <div id="board"></div>
+
+    <script>
+        const ROWS = 10, COLS = 15;
+        let score = 0, timeLeft = 100, timer, isDragging = false, startCell, endCell, gridData = [];
+        const board = document.getElementById('board'), scoreEl = document.getElementById('score'), timeEl = document.getElementById('time');
+
+        // Bắt đầu game
+        function startGame() {
+            clearInterval(timer);
+            score = 0; timeLeft = 100;
+            scoreEl.innerText = score; timeEl.innerText = timeLeft;
+            board.innerHTML = ''; gridData = [];
+
+            // Tạo bảng số ngẫu nhiên
+            for (let r = 0; r < ROWS; r++) {
+                let row = [];
+                for (let c = 0; c < COLS; c++) {
+                    let val = Math.floor(Math.random() * 9) + 1;
+                    row.push(val);
+                    let cell = document.createElement('div');
+                    cell.className = 'cell'; cell.innerText = val;
+                    
+                    // Sự kiện kéo thả chuột
+                    cell.onmousedown = () => { isDragging = true; startCell = endCell = {r, c}; updateColor(); };
+                    cell.onmouseenter = () => { if(isDragging) { endCell = {r, c}; updateColor(); } };
+                    board.appendChild(cell);
+                }
+                gridData.push(row);
+            }
+
+            // Đếm ngược thời gian
+            timer = setInterval(() => {
+                timeLeft--; timeEl.innerText = timeLeft;
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        // Nhả chuột -> Kiểm tra tổng
+        window.onmouseup = () => { 
+            if(isDragging) { isDragging = false; checkSum(); } 
+        };
+
+        // Bôi màu các ô đang kéo
+        function updateColor() {
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+            let minR = Math.min(startCell.r, endCell.r), maxR = Math.max(startCell.r, endCell.r);
+            let minC = Math.min(startCell.c, endCell.c), maxC = Math.max(startCell.c, endCell.c);
+            
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    if (gridData[r][c] !== 0) board.children[r * COLS + c].classList.add('selected');
+                }
+            }
+        }
+
+        // Kiểm tra tổng = 10
+        function checkSum() {
+            let minR = Math.min(startCell.r, endCell.r), maxR = Math.max(startCell.r, endCell.r);
+            let minC = Math.min(startCell.c, endCell.c), maxC = Math.max(startCell.c, endCell.c);
+            let sum = 0, cells = [];
+            
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    if (gridData[r][c] !== 0) { 
+                        sum += gridData[r][c]; cells.push({r, c}); 
+                    }
+                }
+            }
+            
+            // Nếu bằng 10 -> Cấp điểm và ẩn ô
+            if (sum === 10) {
+                score += cells.length * 10; 
+                scoreEl.innerText = score;
+                cells.forEach(p => {
+                    gridData[p.r][p.c] = 0;
+                    board.children[p.r * COLS + p.c].classList.add('empty');
+                });
+            }
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+        }
+
+        // Kết thúc game
+        function endGame() {
+            clearInterval(timer);
+            // Hiện điểm lên màn hình
+            alert("HẾT GIỜ! Giỏi lắm, điểm tổng kết của bạn là: " + score);
+            
+            // Gửi điểm về Backend Flask
+            fetch('/nop-diem', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({score: score})
+            });
+        }
+
+        // Chặn bôi đen nội dung web
+        document.ondragstart = () => false;
+        startGame();
+    </script>
+</body>
+</html>
